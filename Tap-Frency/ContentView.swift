@@ -37,24 +37,64 @@ struct ContentView: View {
             Text("SCORE")
                 .font(.headline)
                 .foregroundStyle(.gray)
+            
+            
+            
+            
 
-            Button {
+            if phase == .over {
 
-                if phase == .idle {
-                    phase = .playing
-                }
+                VStack(spacing: 20) {
 
-                if phase == .playing {
-                    score += 1
-                }
+                    Text("GAME OVER!")
+                        .font(.system(size: 35, weight: .heavy))
+                        .foregroundStyle(.red)
 
-            } label: {
-                Text(phase == .idle ? "START!" : "TAP!")
-                    .font(.system(size: 35, weight: .heavy))
+                    Text("Final Score: \(score)")
+                        .font(.title2)
+                        .foregroundStyle(.white)
+                    
+                    Button("PLAY AGAIN") {
+
+                        score = 0
+                        timeRemaining = 10
+                        phase = .idle
+
+                    }
+                    .font(.title2)
+                    .bold()
                     .foregroundStyle(.white)
-                    .frame(width: 200, height: 200)
-                    .background(.blue)
-                    .clipShape(Circle())
+                    .padding()
+                    .background(.green)
+                    .clipShape(RoundedRectangle(cornerRadius: 15))
+
+                }
+                
+                
+
+            } else {
+
+                Button {
+
+                    if phase == .idle {
+                        phase = .playing
+                    }
+
+                    if phase == .playing {
+                        score += 1
+                    }
+
+                } label: {
+
+                    Text(phase == .idle ? "START!" : "TAP!")
+                        .font(.system(size: 35, weight: .heavy))
+                        .foregroundStyle(.white)
+                        .frame(width: 200, height: 200)
+                        .background(.blue)
+                        .clipShape(Circle())
+
+                }
+
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
