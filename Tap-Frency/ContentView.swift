@@ -13,6 +13,7 @@ struct ContentView: View {
 
     @State private var score = 0
     @State private var timeRemaining = 10
+    @State private var phase: GamePhase = .idle
 
     private let timer = Timer.publish(
         every: 1,
@@ -20,6 +21,8 @@ struct ContentView: View {
         in: .common
     ).autoconnect()
 
+    
+    
     var body: some View {
         VStack(spacing: 35) {
 
@@ -36,10 +39,17 @@ struct ContentView: View {
                 .foregroundStyle(.gray)
 
             Button {
-                score = score + 1
-                print("Button tapped!")
+
+                if phase == .idle {
+                    phase = .playing
+                }
+
+                if phase == .playing {
+                    score += 1
+                }
+
             } label: {
-                Text("TAP!")
+                Text(phase == .idle ? "START!" : "TAP!")
                     .font(.system(size: 35, weight: .heavy))
                     .foregroundStyle(.white)
                     .frame(width: 200, height: 200)
@@ -50,13 +60,26 @@ struct ContentView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(.white)
         .onReceive(timer) { _ in
-            if timeRemaining > 0 {
-                timeRemaining -= 1
+            
+            if phase == .playing {
+                if timeRemaining > 0 {
+                    timeRemaining -= 1
+                }
+                
+                if timeRemaining == 0{
+                    phase = .over
+                }
             }
         }
     }
 }
-
-#Preview {
-    ContentView()
+enum GamePhase{
+    case idle
+    case playing
+    case over
+    
 }
+#Preview {
+    ContentView()}
+
+
