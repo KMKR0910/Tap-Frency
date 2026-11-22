@@ -22,6 +22,20 @@ struct ContentView: View {
     @State private var trapCycleID = 0
 
     @AppStorage("highScore") private var highScore = 0
+    
+    @State private var peakScore = 0
+    @State private var justFilledStar = -1    
+    
+    
+    @State private var scorePulse = false
+    
+    private var starsFilled: Int {
+        min(3, peakScore / 20)
+    }
+
+    private var starProgress: Double {
+        peakScore >= 60 ? 1.0 : Double(peakScore % 20) / 20.0
+    }
 
     private let timer = Timer.publish(
         every: 1,
@@ -36,6 +50,45 @@ struct ContentView: View {
             Text("Time: \(timeRemaining)")
                 .font(.title)
                 .foregroundStyle(.blue)
+            
+            VStack(spacing: 8) {
+
+                HStack(spacing: 12) {
+                    ForEach(0..<3, id: \.self) { index in
+                        Image(systemName: index < starsFilled ? "star.fill" : "star")
+                            .font(.system(size: 32))
+                            .foregroundStyle(index < starsFilled ? .yellow : .white.opacity(0.25))
+                            .shadow(
+                                color: index < starsFilled ? .yellow.opacity(0.7) : .clear,
+                                radius: 8
+                            )
+                            .scaleEffect(justFilledStar == index ? 1.4 : 1.0)
+                            .animation(
+                                .spring(response: 0.3, dampingFraction: 0.4),
+                                value: justFilledStar
+                            )
+                    }
+                }
+
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        Capsule()
+                            .fill(.white.opacity(0.15))
+                        Capsule()
+                            .fill(.yellow)
+                            .frame(width: geo.size.width * starProgress)
+                    }
+                }
+                .frame(width: 140, height: 6)
+                .animation(.easeOut(duration: 0.25), value: starProgress)
+            }
+            .onChange(of: starsFilled) { oldValue, newValue in
+                guard newValue > oldValue, newValue > 0 else { return }
+                justFilledStar = newValue - 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    justFilledStar = -1
+                }
+            }
 
             VStack(spacing: 4) {
                 HStack(spacing: 12) {
@@ -53,8 +106,17 @@ struct ContentView: View {
                 Text("SCORE")
                     .font(.caption)
                     .fontWeight(.bold)
-                    .tracking(3)          // letter-spacing — "SCORE" gets a HUD look
+                    .tracking(3)          
                     .foregroundStyle(.white.opacity(0.5))
+                    .scaleEffect(scorePulse ? 1.2 : 1.0)
+                    .animation(.spring(response: 0.2, dampingFraction: 0.4), value: scorePulse)
+                    .onChange(of: score) { oldValue, newValue in
+                        guard newValue > oldValue else { return }
+                        scorePulse = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            scorePulse = false
+                        }
+                    }
             }
             .padding(.horizontal, 40)
             .padding(.vertical, 16)
@@ -118,7 +180,7 @@ struct ContentView: View {
                     )
                     .animation(.easeInOut(duration: 0.1), value: isTrapActive)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(SquishyButtonStyle())
             }
 
         }
@@ -176,6 +238,7 @@ struct ContentView: View {
         }
 
         score += combo
+        peakScore = max(peakScore, score)
         lastTapTime = currentTime
     }
 
@@ -226,6 +289,7 @@ struct ContentView: View {
     private func restartGame() {
 
         score = 0
+        peakScore = 0
         timeRemaining = 10
         combo = 1
         lastTapTime = nil
@@ -236,7 +300,16 @@ struct ContentView: View {
         phase = .idle
     }
 }
-
+struct SquishyButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
+            .animation(
+                .spring(response: 0.25, dampingFraction: 0.55),
+                value: configuration.isPressed
+            )
+    }
+}
 enum GamePhase {
     case idle
     case playing
