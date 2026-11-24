@@ -5,43 +5,42 @@
 //  Created by Kasun Rashmika on 2026-11-19.
 //
 
-
-
 import SwiftUI
 import Combine
 
 struct ContentView: View {
 
+    //Game state
     @State private var score = 0
     @State private var timeRemaining = 10
     @State private var phase: GamePhase = .idle
-    @State private var combo = 1
-    @State private var lastTapTime: Date? = nil
+    @State private var combo = 1                    // tap multiplier
+    @State private var lastTapTime: Date? = nil     // last tap — used for combo timing
 
-    @State private var isTrapActive = false
-    @State private var trapCycleID = 0
+    // Trap state
+    @State private var isTrapActive = false         // trap currently on screen
+    @State private var trapCycleID = 0              // bumped on reset to cancel old traps
 
+    //Persistence
     @AppStorage("highScore") private var highScore = 0
-    
-    @State private var peakScore = 0
-    @State private var justFilledStar = -1    
-    
-    
-    @State private var scorePulse = false
-    
+
+    //Star meter state
+    @State private var peakScore = 0                // highest score this round
+    @State private var justFilledStar = -1          // which star is pulsing (-1 = none)
+    @State private var scorePulse = false           // toggles the score pulse animation
+
+
     private var starsFilled: Int {
-        min(3, peakScore / 20)
+        min(3, peakScore / 20)                      // 1 star per 20 peak points, max 3
     }
 
     private var starProgress: Double {
-        peakScore >= 60 ? 1.0 : Double(peakScore % 20) / 20.0
+        peakScore >= 60 ? 1.0 : Double(peakScore % 20) / 20.0   // fill bar under stars
     }
 
-    private let timer = Timer.publish(
-        every: 1,
-        on: .main,
-        in: .common
-    ).autoconnect()
+    //Timer publisher
+    private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+
 
     var body: some View {
 
@@ -50,7 +49,8 @@ struct ContentView: View {
             Text("Time: \(timeRemaining)")
                 .font(.title)
                 .foregroundStyle(.blue)
-            
+
+            // Star meter
             VStack(spacing: 8) {
 
                 HStack(spacing: 12) {
@@ -62,18 +62,15 @@ struct ContentView: View {
                                 color: index < starsFilled ? .yellow.opacity(0.7) : .clear,
                                 radius: 8
                             )
-                            .scaleEffect(justFilledStar == index ? 1.4 : 1.0)
-                            .animation(
-                                .spring(response: 0.3, dampingFraction: 0.4),
-                                value: justFilledStar
-                            )
+                            .scaleEffect(justFilledStar == index ? 1.4 : 1.0)   // pop the new star
+                            .animation(.spring(response: 0.3, dampingFraction: 0.4), value: justFilledStar)
                     }
                 }
 
+                // Progress bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(.white.opacity(0.15))
+                        Capsule().fill(.white.opacity(0.15))
                         Capsule()
                             .fill(.yellow)
                             .frame(width: geo.size.width * starProgress)
@@ -90,6 +87,7 @@ struct ContentView: View {
                 }
             }
 
+            // Scores
             VStack(spacing: 4) {
                 HStack(spacing: 12) {
                     Text("\(score)")
@@ -106,9 +104,9 @@ struct ContentView: View {
                 Text("SCORE")
                     .font(.caption)
                     .fontWeight(.bold)
-                    .tracking(3)          
+                    .tracking(3)
                     .foregroundStyle(.white.opacity(0.5))
-                    .scaleEffect(scorePulse ? 1.2 : 1.0)
+                    .scaleEffect(scorePulse ? 1.2 : 1.0)                // pulse on score gain
                     .animation(.spring(response: 0.2, dampingFraction: 0.4), value: scorePulse)
                     .onChange(of: score) { oldValue, newValue in
                         guard newValue > oldValue else { return }
@@ -122,10 +120,10 @@ struct ContentView: View {
             .padding(.vertical, 16)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
 
+            // Game over panel
             if phase == .over {
 
                 VStack(spacing: 20) {
-
                     Text("GAME OVER!")
                         .font(.system(size: 35, weight: .heavy))
                         .foregroundStyle(.red)
@@ -153,12 +151,12 @@ struct ContentView: View {
 
                 Button {
 
-                    if phase == .idle {
+                    if phase == .idle {                 // first tap starts the round
                         phase = .playing
                         startTrapCycle()
                     }
 
-                    if phase == .playing {
+                    if phase == .playing {              // every tap while playing scores
                         handleTap()
                     }
 
@@ -189,7 +187,7 @@ struct ContentView: View {
             RadialGradient(
                 colors: [
                     Color(red: 0.10, green: 0.12, blue: 0.30),
-                    Color(red: 0.02, green: 0.02, blue: 0.08)   
+                    Color(red: 0.02, green: 0.02, blue: 0.08)
                 ],
                 center: .center,
                 startRadius: 40,
@@ -197,24 +195,21 @@ struct ContentView: View {
             )
             .ignoresSafeArea()
         )
+
+        // Timer receiver
         .onReceive(timer) { _ in
-
             if phase == .playing {
-
-                if timeRemaining > 0 {
-                    timeRemaining -= 1
-                }
-
-                if timeRemaining == 0 {
-                    endGame()
-                }
+                if timeRemaining > 0 { timeRemaining -= 1 }
+                if timeRemaining == 0 { endGame() }
             }
         }
     }
 
+    //  handleTap — every tap during play
+    // Trap active → -2 points. Fast tap → combo up. Slow tap → combo resets.
     private func handleTap() {
 
-        if isTrapActive {
+        if isTrapActive {                               // trap hit: punish
             score = max(0, score - 2)
             combo = 1
             lastTapTime = nil
@@ -224,39 +219,33 @@ struct ContentView: View {
         let currentTime = Date()
 
         if let lastTap = lastTapTime {
-
             let timeDifference = currentTime.timeIntervalSince(lastTap)
-
-            if timeDifference <= 0.3 {
+            if timeDifference <= 0.3 {                  // ≤ 0.3s → extend combo
                 combo += 1
             } else {
-                combo = 1
+                combo = 1                               // too slow → reset
             }
-
         } else {
-            combo = 1
+            combo = 1                                   // first tap of round
         }
 
         score += combo
-        peakScore = max(peakScore, score)
+        peakScore = max(peakScore, score)               // stars never drop
         lastTapTime = currentTime
     }
 
+    // startTrapCycle — schedules next trap, re-calls itself
     private func startTrapCycle() {
 
-        guard phase == .playing else {
-            return
-        }
+        guard phase == .playing else { return }         // don't schedule if not playing
 
         let delay = Double.random(in: 2.0...5.0)
-        let currentCycleID = trapCycleID
+        let currentCycleID = trapCycleID                // capture ID for cancel-check
 
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
 
             guard phase == .playing,
-                  trapCycleID == currentCycleID else {
-                return
-            }
+                  trapCycleID == currentCycleID else { return }   // game reset? bail
 
             isTrapActive = true
             combo = 1
@@ -265,12 +254,10 @@ struct ContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
 
                 guard phase == .playing,
-                      trapCycleID == currentCycleID else {
-                    return
-                }
+                      trapCycleID == currentCycleID else { return }
 
                 isTrapActive = false
-                startTrapCycle()
+                startTrapCycle()                        // schedule next trap
             }
         }
     }
@@ -281,9 +268,7 @@ struct ContentView: View {
         trapCycleID += 1
         isTrapActive = false
 
-        if score > highScore {
-            highScore = score
-        }
+        if score > highScore { highScore = score }
     }
 
     private func restartGame() {
@@ -300,14 +285,13 @@ struct ContentView: View {
         phase = .idle
     }
 }
+
+//SquishyButtonStyle — shrinks button on press, springs back
 struct SquishyButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.92 : 1.0)
-            .animation(
-                .spring(response: 0.25, dampingFraction: 0.55),
-                value: configuration.isPressed
-            )
+            .animation(.spring(response: 0.25, dampingFraction: 0.55), value: configuration.isPressed)
     }
 }
 enum GamePhase {
